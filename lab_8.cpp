@@ -3,6 +3,7 @@
 #include <algorithm>
 #include "App.h"
 #include <fstream>
+#include <unordered_set>
 using namespace std;
 int main()
 {
@@ -38,7 +39,13 @@ int main()
         cout << "Введите цену программы: ";
         cin >> newApp.price;
 
-        appList.push_back(newApp); // Добавляем новую программу в список
+        if (!appList.empty()) {
+            App& prevApp = appList.back();
+            prevApp.next = &newApp;
+            newApp.prev = &prevApp;
+        }
+        appList.push_back(newApp);
+        // Добавляем новую программу в список
 
         cout << "Продолжить ввод программы? (y/n): ";
         cin >> choice;
@@ -46,9 +53,9 @@ int main()
 
     // Выводим список всех программ
     for (const auto& app : appList) {
-        cout << "Название: " << app.name << ", Производитель: " << app.manufacturer
-            << ", Размер на диске: " << app.size << " МБ, Цена: " << app.price << endl;
+        cout << "Название: " << app.name << ", Производитель: " << app.manufacturer << ", Размер на диске: " << app.size << " МБ, Цена: " << app.price << endl;
     }
+
 
     // Выбор действия пользователем
     char action;
@@ -64,13 +71,23 @@ int main()
         if (position >= 1 && position <= appList.size()) {
             auto it = appList.begin();
             advance(it, position - 1);
+
+            if (it != appList.begin()) {
+                App& prevApp = *prev(it);
+                prevApp.next = it->next;
+            }
+
+            if (it->next != nullptr) {
+                it->next->prev = it->prev;
+            }
+
             appList.erase(it);
 
             // Выводим список всех программ после удаления
             for (const auto& app : appList) {
-                cout << "Название: " << app.name << ", Производитель: " << app.manufacturer
-                    << ", Размер на диске: " << app.size << " МБ, Цена: " << app.price << endl;
+                cout << "Название: " << app.name << ", Производитель: " << app.manufacturer << ", Размер на диске: " << app.size << " МБ, Цена: " << app.price << endl;
             }
+
         }
         else {
             throw out_of_range("Указанная позиция превышает длину списка!");
@@ -85,16 +102,32 @@ int main()
         if (position2 >= 1 && position2 <= appList.size()) {
             auto it = appList.begin();
             advance(it, position2 - 1);
-            const App& selectedApp = *it;
+            const App* selectedApp = &(*it);
 
-            // Выводим информацию о выбранной программе
-            cout << "Выбранная программа: Название: " << selectedApp.name << ", Производитель: "
-                << selectedApp.manufacturer << ", Размер на диске: " << selectedApp.size
-                << " МБ, Цена: " << selectedApp.price << endl;
+            // Вывод информации о выбранной программе
+            cout << "Выбранная программа: Название: " << selectedApp->name << ", Производитель: "
+                << selectedApp->manufacturer << ", Размер на диске: " << selectedApp->size
+                << " МБ, Цена: " << selectedApp->price << endl;
+
+            // Вывод информации о предыдущем элементе, если таковой имеется
+            if (selectedApp->prev != nullptr) {
+                cout << "Предыдущая программа: Название: " << selectedApp->prev->name << ", Производитель: "
+                    << selectedApp->prev->manufacturer << ", Размер на диске: " << selectedApp->prev->size
+                    << " МБ, Цена: " << selectedApp->prev->price << endl;
+            }
+
+            // Вывод информации о следующем элементе, если таковой имеется
+            if (selectedApp->next != nullptr) {
+                cout << "Следующая программа: Название: " << selectedApp->next->name << ", Производитель: "
+                    << selectedApp->next->manufacturer << ", Размер на диске: " << selectedApp->next->size
+                    << " МБ, Цена: " << selectedApp->next->price << endl;
+            }
         }
         else {
             throw out_of_range("Указанная позиция превышает длину списка!");
         }
+
+
     }
     else if (action == 'p') {
         // Поиск программы по названию и вывод номеров позиций
@@ -108,6 +141,26 @@ int main()
             if (app.name == searchName) {
                 found = true;
                 cout << "Программа '" << searchName << "' найдена на позиции: " << position << endl;
+
+                // Вывод информации о найденной программе
+                cout << "Название: " << app.name << ", Производитель: " << app.manufacturer
+                    << ", Размер на диске: " << app.size << " МБ, Цена: " << app.price << endl;
+
+                // Вывод информации о предыдущем элементе, если таковой имеется
+                if (app.prev != nullptr) {
+                    cout << "Предыдущая программа: Название: " << app.prev->name << ", Производитель: "
+                        << app.prev->manufacturer << ", Размер на диске: " << app.prev->size
+                        << " МБ, Цена: " << app.prev->price << endl;
+                }
+
+                // Вывод информации о следующем элементе, если таковой имеется
+                if (app.next != nullptr) {
+                    cout << "Следующая программа: Название: " << app.next->name << ", Производитель: "
+                        << app.next->manufacturer << ", Размер на диске: " << app.next->size
+                        << " МБ, Цена: " << app.next->price << endl;
+                }
+
+                break; // Выход из цикла после нахождения и вывода информации о программе
             }
             position++;
         }
@@ -115,38 +168,36 @@ int main()
         if (!found) {
             cout << "Программа '" << searchName << "' не найдена в списке." << endl;
         }
+
+
     }
     else if (action == 'e') {
         // Получение всех уникальных производителей
         const int MAX_UNIQUE_MANUFACTURERS = 100;
-        string uniqueManufacturers[MAX_UNIQUE_MANUFACTURERS];
-        int uniqueIndex = 0;
+        vector<string> uniqueManufacturers;
+
+        // Создаем временный список для хранения уже найденных производителей
+        unordered_set<string> manufacturersSet;
 
         for (const auto& app : appList) {
-            bool isUnique = true;
-            for (int i = 0; i < uniqueIndex; ++i) {
-                if (uniqueManufacturers[i] == app.manufacturer) {
-                    isUnique = false;
-                    break;
+            // Проверяем, был ли уже найден производитель
+            if (manufacturersSet.find(app.manufacturer) == manufacturersSet.end()) {
+                uniqueManufacturers.push_back(app.manufacturer);
+                manufacturersSet.insert(app.manufacturer);
+
+                if (uniqueManufacturers.size() >= MAX_UNIQUE_MANUFACTURERS) {
+                    break; // Максимальное количество уникальных производителей достигнуто
                 }
-            }
-            if (isUnique) {
-                uniqueManufacturers[uniqueIndex++] = app.manufacturer;
-            }
-            if (uniqueIndex >= MAX_UNIQUE_MANUFACTURERS) {
-                break; // Максимальное количество уникальных производителей достигнуто
             }
         }
 
         // Вывод уникальных производителей
         cout << "Уникальные производители:" << endl;
-        for (int i = 0; i < uniqueIndex; ++i) {
-            cout << uniqueManufacturers[i] << endl;
+        for (const auto& manufacturer : uniqueManufacturers) {
+            cout << manufacturer << endl;
         }
-    }
-    else {
-        throw invalid_argument("Неверный выбор действия!");
-    }
 
-    return 0;
+
+        return 0;
+    }
 }
